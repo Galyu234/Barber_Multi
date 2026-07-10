@@ -205,13 +205,15 @@
                             <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                             Live
                         </div>
-                        <form action="{{ route('logout') }}" method="POST" class="m-0">
-                            @csrf
-                            <button type="submit" class="flex items-center gap-2 text-sm font-semibold text-red-500 hover:text-red-600 transition-colors bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg border border-red-100">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                                <span class="hidden sm:inline">Logout</span>
-                            </button>
-                        </form>
+                        {{-- User info pill --}}
+                        <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-3 py-1.5 shadow-sm">
+                            <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
+                                {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
+                            </div>
+                            <span class="hidden sm:block text-xs font-semibold text-slate-700 max-w-[120px] truncate">
+                                {{ auth()->user()->name }}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -257,9 +259,16 @@
 
         // Update live queue badge in sidebar
         function updateSidebarBadge() {
-            fetch('{{ route("admin.api.monitor") }}')
-                .then(r => r.json())
+            fetch('{{ route("admin.api.monitor") }}', {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(r => {
+                    // Jika session expire (redirect ke login), abaikan saja
+                    if (!r.ok || r.redirected) return;
+                    return r.json();
+                })
                 .then(data => {
+                    if (!data) return;
                     const badge = document.getElementById('live-queue-badge');
                     if (badge) badge.textContent = data.total;
                 })

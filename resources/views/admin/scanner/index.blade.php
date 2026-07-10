@@ -36,15 +36,16 @@
         </div>
 
         {{-- Lifecycle Info --}}
-        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-5">
-            <p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Alur Scan QR</p>
-            <div class="flex items-center gap-2 text-xs">
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-5">
+            <p class="text-xs font-semibold text-blue-600 mb-2 uppercase tracking-wider">📋 Alur Kerja Scanner</p>
+            <div class="flex items-center gap-2 text-xs flex-wrap">
                 <span class="badge badge-yellow">⏳ Menunggu</span>
-                <span class="text-slate-400">→ Scan 1 →</span>
+                <span class="text-slate-400">→ Scan QR →</span>
                 <span class="badge badge-blue">✂️ Sedang Dicukur</span>
-                <span class="text-slate-400">→ Scan 2 →</span>
+                <span class="text-slate-400">→ Scan QR →</span>
                 <span class="badge badge-green">✅ Selesai</span>
             </div>
+            <p class="text-xs text-blue-500 mt-2">⚠️ Aksi hanya bisa dijalankan melalui <strong>scan QR kamera</strong>. Input manual hanya untuk cek status.</p>
         </div>
 
         {{-- Camera View --}}
@@ -103,7 +104,7 @@
             </div>
         </div>
 
-        {{-- Dynamic Action Button --}}
+        {{-- Dynamic Action Button (hanya tampil setelah scan QR kamera) --}}
         <div id="action-buttons" class="hidden space-y-2">
             {{-- Scan 1: waiting → in_progress --}}
             <button id="btn-start-cut"
@@ -120,6 +121,14 @@
                 style="background: linear-gradient(135deg, #22c55e, #16a34a);">
                 ✅ Selesaikan Antrian
             </button>
+        </div>
+
+        {{-- Panduan scan (muncul jika lookup dari manual, bukan dari scan kamera) --}}
+        <div id="scan-required-notice" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm">
+            <div class="flex items-center gap-2 font-semibold text-amber-700">
+                <span>📷</span> Scan QR pelanggan untuk eksekusi aksi
+            </div>
+            <p class="text-amber-600 text-xs mt-1">Input manual hanya untuk cek status. Arahkan kamera ke QR tiket pelanggan untuk melanjutkan.</p>
         </div>
 
         {{-- Already Done --}}
@@ -161,6 +170,7 @@
     let html5QrCode = null;
     let currentQueueId = null;
     let scannerRunning = false;
+    let lastLookupFromScan = false; // flag: apakah hasil lookup berasal dari scan QR kamera
 
     /* ── SCANNER ─────────────────────────────────── */
     function startScanner() {
@@ -186,6 +196,7 @@
             config,
             (decodedText) => {
                 stopScanner();
+                lastLookupFromScan = true; // berasal dari scan kamera
                 processQrResult(decodedText);
             },
             () => {}
@@ -198,6 +209,7 @@
                 config,
                 (decodedText) => {
                     stopScanner();
+                    lastLookupFromScan = true; // berasal dari scan kamera (front)
                     processQrResult(decodedText);
                 },
                 () => {}
@@ -256,6 +268,11 @@
         const token = tokenOverride || document.getElementById('manual-token').value.trim();
         if (!token) return;
 
+        // Jika dipanggil dari tombol manual (bukan dari processQrResult), reset flag scan
+        if (tokenOverride === undefined) {
+            lastLookupFromScan = false;
+        }
+
         hideAll();
 
         fetch('{{ route("admin.scanner.lookup") }}', {
@@ -311,28 +328,36 @@
         const icon = document.getElementById('result-icon');
         icon.className = `w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${iconBg[data.status] || 'bg-slate-100'}`;
 
-        // Tampilkan tombol yang sesuai dengan status
-        const actionBtns   = document.getElementById('action-buttons');
-        const btnStart     = document.getElementById('btn-start-cut');
-        const btnFinish    = document.getElementById('btn-finish-cut');
-        const doneNotice   = document.getElementById('done-notice');
+        // Tampilkan tombol HANYA jika lookup berasal dari scan QR kamera
+        const actionBtns        = document.getElementById('action-buttons');
+        const btnStart          = document.getElementById('btn-start-cut');
+        const btnFinish         = document.getElementById('btn-finish-cut');
+        const doneNotice        = document.getElementById('done-notice');
+        const scanRequiredNotice = document.getElementById('scan-required-notice');
 
         btnStart.classList.add('hidden');
         btnFinish.classList.add('hidden');
         doneNotice.classList.add('hidden');
         actionBtns.classList.add('hidden');
+        scanRequiredNotice.classList.add('hidden');
 
-        if (data.action === 'start') {
-            // Menunggu → tampilkan tombol Mulai Cukur
-            actionBtns.classList.remove('hidden');
-            btnStart.classList.remove('hidden');
-        } else if (data.action === 'finish') {
-            // Sedang Dicukur → tampilkan tombol Selesaikan
-            actionBtns.classList.remove('hidden');
-            btnFinish.classList.remove('hidden');
-        } else if (data.action === 'done') {
-            // Sudah selesai
+        if (data.action === 'done') {
+            // Antrian sudah selesai — tampilkan notif selesai (tidak perlu scan)
             doneNotice.classList.remove('hidden');
+        } else if (lastLookupFromScan) {
+            // Berasal dari scan kamera → tampilkan tombol aksi
+            if (data.action === 'start') {
+                actionBtns.classList.remove('hidden');
+                btnStart.classList.remove('hidden');
+            } else if (data.action === 'finish') {
+                actionBtns.classList.remove('hidden');
+                btnFinish.classList.remove('hidden');
+            }
+        } else {
+            // Berasal dari input manual → hanya tampilkan panduan scan
+            if (data.action === 'start' || data.action === 'finish') {
+                scanRequiredNotice.classList.remove('hidden');
+            }
         }
 
         document.getElementById('result-message').classList.add('hidden');
@@ -397,8 +422,10 @@
     function resetScanner() {
         hideAll();
         currentQueueId = null;
+        lastLookupFromScan = false;
         document.getElementById('manual-token').value = '';
         document.getElementById('action-buttons').classList.add('hidden');
+        document.getElementById('scan-required-notice').classList.add('hidden');
         document.getElementById('result-message').classList.add('hidden');
         document.getElementById('btn-start-cut').disabled    = false;
         document.getElementById('btn-start-cut').textContent = '✂️ Mulai Cukur';

@@ -190,6 +190,16 @@
     </div>
 
     <script>
+        // Reset tombol jika halaman diload dari bfcache (bfcache = back-forward cache browser)
+        window.addEventListener('pageshow', function (e) {
+            if (e.persisted) {
+                // Halaman dikembalikan dari bfcache, reset state tombol
+                document.getElementById('loginText').classList.remove('hidden');
+                document.getElementById('loginLoading').classList.add('hidden');
+                document.getElementById('loginBtn').disabled = false;
+            }
+        });
+
         document.getElementById('loginForm').addEventListener('submit', function () {
             document.getElementById('loginText').classList.add('hidden');
             document.getElementById('loginLoading').classList.remove('hidden');

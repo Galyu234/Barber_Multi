@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Route;
 */
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/branch/{code}', [HomeController::class, 'branchDetail'])->name('branch.detail');
+Route::get('/monitor/{code}', [HomeController::class, 'queueMonitor'])->name('queue.monitor');
 
 // Queue Actions (scan QR cabang → branch detail → join/leave/status)
 Route::get('/queue/join/{branch_code}',  [QueueController::class, 'showJoin'])->name('queue.join');
@@ -35,6 +36,7 @@ Route::get('/queue/status/{branch_code}/{token}', [QueueController::class, 'stat
 |--------------------------------------------------------------------------
 */
 Route::prefix('api')->name('api.')->group(function () {
+    Route::get('/branches', [HomeController::class, 'apiBranches'])->name('branches');
     Route::get('/branch/{code}/queue', [HomeController::class, 'apiBranchQueue'])->name('branch.queue');
     Route::get('/queue/status/{branch_code}/{token}', [QueueController::class, 'apiStatus'])->name('queue.status');
 });
@@ -46,7 +48,7 @@ Route::prefix('api')->name('api.')->group(function () {
 */
 Route::get('/login',  [AuthController::class, 'showLogin'])->name('login')->middleware('guest');
 Route::post('/login', [AuthController::class, 'login'])->name('login.post');
-Route::post('/logout',[AuthController::class, 'logout'])->name('logout')->middleware('auth');
+Route::post('/logout',[AuthController::class, 'logout'])->name('logout');
 
 // Public Registration — Barbershop Owner
 Route::get('/register-barbershop',  [RegisterBarbershopController::class, 'showForm'])

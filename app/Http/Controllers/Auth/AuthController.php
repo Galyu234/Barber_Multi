@@ -22,6 +22,14 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
+
+            // Pastikan intended URL bukan endpoint API/JSON — jika ya, abaikan
+            $intended = $request->session()->get('url.intended', '');
+            $isApiEndpoint = str_contains($intended, '/api/') || str_contains($intended, 'api/monitor');
+            if ($isApiEndpoint) {
+                $request->session()->forget('url.intended');
+            }
+
             return redirect()->intended(route('admin.dashboard'));
         }
 
@@ -33,8 +41,14 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         Auth::logout();
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        return redirect()->route('login');
+        $request->session()->flush();
+
+        return redirect()->route('login')->withHeaders([
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma'        => 'no-cache',
+        ]);
     }
 }

@@ -11,7 +11,59 @@ class HomeController extends Controller
 {
     public function index()
     {
-        return view('public.home');
+        $branches = Branch::with('barbershop')
+            ->where('is_active', true)
+            ->withCount(['queues as active_queue_count' => fn($q) => $q->whereIn('status', ['waiting', 'serving', 'in_progress'])])
+            ->orderBy('name')
+            ->get();
+
+        return view('public.home', compact('branches'));
+    }
+
+    // AJAX: Semua cabang aktif + jumlah antrian (untuk polling di beranda)
+    public function apiBranches()
+    {
+        $branches = Branch::with('barbershop')
+            ->where('is_active', true)
+            ->withCount(['queues as active_queue_count' => fn($q) => $q->whereIn('status', ['waiting', 'serving', 'in_progress'])])
+            ->orderBy('name')
+            ->get()
+            ->map(fn($b) => [
+                'id'             => $b->id,
+                'name'           => $b->name,
+                'code'           => $b->code,
+                'barbershop'     => $b->barbershop->name ?? '',
+                'address'        => $b->address,
+                'phone'          => $b->phone,
+                'is_open'        => $b->isOpen(),
+                'open_time'      => substr($b->open_time, 0, 5),
+                'close_time'     => substr($b->close_time, 0, 5),
+                'queue_count'    => $b->active_queue_count,
+                'queue_status'   => $b->queue_status,
+                'queue_label'    => $b->queue_status_label,
+                'estimated_wait' => $b->estimated_wait_minutes,
+            ]);
+
+        return response()->json([
+            'branches'     => $branches,
+            'last_updated' => now()->format('H:i:s'),
+        ]);
+    }
+
+    // Halaman monitor antrian publik (view-only, tanpa join)
+    public function queueMonitor(string $code)
+    {
+        $branch = Branch::with('barbershop')
+            ->where('code', $code)
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $queues = $branch->queues()
+            ->whereIn('status', ['waiting', 'serving', 'in_progress'])
+            ->orderBy('joined_at')
+            ->get();
+
+        return view('public.queue-monitor', compact('branch', 'queues'));
     }
 
     public function branchDetail(Request $request, string $code)
